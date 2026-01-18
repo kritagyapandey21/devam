@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TANIX AI — Step-by-step Martingale (Recommendations + Profile)</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    if (!sessionStorage.getItem('authToken')) {
+      window.location.href = 'index.html';
+    }
+  </script>
+  <style>
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+    .fade-in { animation: fadeIn .25s ease both; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px);} to {opacity:1; transform:none;} }
+    .row-hidden { display: none; }
+    .caret { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid rgba(255,255,255,0.12); display:inline-block; margin-left:6px; transform: translateY(-1px); }
+  </style>
+</head>
+
+<body class="min-h-screen bg-gray-950 text-gray-100">
+
+  <!-- NAVBAR -->
+  <nav class="w-full bg-gray-900 border-b border-gray-800 py-3 mb-6 shadow">
+    <div class="max-w-6xl mx-auto px-6 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <a href="index.html" class="flex items-center gap-3">
+          <img src="Tanix ai logo.png" alt="Learn with Tanishq Logo" width="40" height="40" class="rounded-md object-contain">
+
+          <div class="leading-tight">
+            <div class="text-xl font-extrabold tracking-wide">
+              <span class="text-sky-400">Learn with</span> <span class="text-white">Tanishq</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-0.5">Money management guide</div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Profile -->
+      <div class="relative" id="profileWrap">
+        <button id="profileBtn"
+          class="flex items-center gap-2 px-3 py-2 rounded-md bg-gray-800 hover:bg-gray-700">
+          <div class="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-gray-900">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <span class="text-sm text-gray-200 hidden sm:inline">Profile</span>
+          <span class="caret"></span>
+        </button>
+
+        <div id="profileMenu"
+          class="hidden absolute right-0 mt-2 w-40 bg-gray-900 border border-gray-800 rounded-md shadow-lg">
+          <ul class="py-1">
+            <li><a id="menuLogout" href="#" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-800">Logout</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-4xl mx-auto px-6">
+
+    <!-- INPUT -->
+    <section class="bg-gray-900/70 border border-gray-800 rounded-xl p-6 mb-6 shadow-lg">
+      <form id="inputsForm" class="grid gap-4 sm:grid-cols-3 items-end">
+        <div>
+          <label class="text-sm text-gray-300 block mb-2">Total Amount ($)</label>
+          <input id="totalAmount" type="number" min="0" step="0.01"
+            placeholder="1000"
+            class="w-full p-3 rounded-md bg-gray-950 border border-gray-800 text-gray-100" required>
+        </div>
+
+        <div>
+          <label class="text-sm text-gray-300 block mb-2">Number of Trades</label>
+          <input id="numTrades" type="number" min="1" step="1"
+            placeholder="10"
+            class="w-full p-3 rounded-md bg-gray-950 border border-gray-800 text-gray-100" required>
+        </div>
+
+        <button type="submit"
+          class="w-full py-3 px-4 rounded-md bg-gradient-to-r from-sky-500 to-blue-500 text-gray-900 font-semibold shadow">
+          Submit
+        </button>
+      </form>
+    </section>
+
+    <!-- STATS (Remaining balance + cumulative P/L here) -->
+    <section id="stats" class="hidden mb-6">
+      <div class="bg-gray-900/70 border border-gray-800 rounded-lg p-4 flex justify-between items-center">
+        <div>
+          <div class="text-sm text-gray-400">Remaining Balance</div>
+          <div id="remainingBalance" class="text-xl font-semibold mono">$0.00</div>
+        </div>
+
+        <div class="text-right">
+          <div class="text-sm text-gray-400">Cumulative P/L</div>
+          <div id="cumPL" class="text-xl font-semibold mono text-gray-200">$0.00</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULT TABLE -->
+    <section id="results" class="hidden fade-in">
+
+      <div class="overflow-x-hidden bg-gray-900/70 border border-gray-800 rounded-lg">
+        <table class="w-full min-w-0 table-auto text-left">
+          <thead class="bg-gray-950/50">
+            <tr>
+              <th class="px-2 py-2 text-sm text-gray-300">Sr. No.</th>
+              <th class="px-2 py-2 text-sm text-gray-300">Trade Amount</th>
+              <th class="px-2 py-2 text-sm text-gray-300">Amount (win/loss)</th>
+              <th class="px-2 py-2 text-sm text-gray-300">Result</th>
+            </tr>
+          </thead>
+
+          <tbody id="recBody" class="divide-y divide-gray-800"></tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 flex gap-3 items-center">
+        <button id="resetBtn" class="px-4 py-2 rounded-md bg-gray-800 hover:bg-gray-700">Reset</button>
+
+        <!-- GLOBAL SUBMIT (green success type) -->
+        <button id="globalSubmitBtn"
+          class="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled>
+          Submit
+        </button>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    // Profile dropdown logic
+    const profileBtn = document.getElementById('profileBtn');
+    const profileMenu = document.getElementById('profileMenu');
+    profileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !profileMenu.classList.contains('hidden');
+      profileMenu.classList.toggle('hidden', open);
+      profileBtn.setAttribute('aria-expanded', String(!open));
+    });
+    // close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!profileMenu.classList.contains('hidden')) {
+        profileMenu.classList.add('hidden');
+        profileBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    // Logout behavior
+    document.getElementById('menuLogout').addEventListener('click', (e) => {
+      e.preventDefault();
+      sessionStorage.removeItem('authToken');
+      window.location.href = 'index.html';
+    });
+
+    /* ===========================
+       Recommendation / step-by-step logic (full calculations)
+       =========================== */
+
+    // DOM
+    const recBody = document.getElementById("recBody");
+    const resultsSec = document.getElementById("results");
+    const statsSec = document.getElementById("stats");
+    const remainingBalanceEl = document.getElementById("remainingBalance");
+    const cumPLEl = document.getElementById("cumPL");
+    const globalSubmitBtn = document.getElementById("globalSubmitBtn");
+
+    // helpers
+    const money = v => "$" + Number(v || 0).toFixed(2);
+    const round2 = v => Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
+
+    // state
+    let startingBalance = 0;
+    let remainingBalance = 0;
+    let baseTrade = 0;      // 0.5% baseline (of startingBalance)
+    let rows = [];
+    let visibleIndex = 0;
+
+    // Build rows (one visible at a time)
+    function buildRows(n) {
+      recBody.innerHTML = "";
+      rows = [];
+      visibleIndex = 0;
+
+      for (let i = 0; i < n; i++) {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-gray-950/30 transition-colors";
+
+        // Sr No.
+        const tdIdx = document.createElement("td");
+        tdIdx.className = "px-2 py-2 text-gray-300";
+        tdIdx.textContent = i + 1;
+
+        // Recommendation cell
+        const tdReco = document.createElement("td");
+        tdReco.className = "px-2 py-2 mono text-gray-100";
+        tdReco.textContent = money(0);
+        tdReco.dataset.reco = "";
+
+        // Amount input (empty) - user enters actual win/loss amount (positive)
+        const tdAmount = document.createElement("td");
+        tdAmount.className = "px-2 py-2";
+        const amountInput = document.createElement("input");
+        amountInput.type = "number";
+        amountInput.step = "0.01";
+        amountInput.min = "0";
+        amountInput.placeholder = "Enter win/loss";
+        // mobile-friendly width (smaller on mobile)
+        amountInput.className = "p-2 w-20 sm:w-28 bg-gray-900 border border-gray-800 rounded-md text-gray-100 mono";
+        tdAmount.appendChild(amountInput);
+
+        // Result select
+        const tdResult = document.createElement("td");
+        tdResult.className = "px-2 py-2";
+        const sel = document.createElement("select");
+        sel.className = "p-2 bg-gray-900 border border-gray-800 rounded-md";
+        sel.innerHTML = `
+          <option value="" disabled selected>Result</option>
+          <option value="Win">Win</option>
+          <option value="Loss">Loss</option>
+        `;
+        tdResult.appendChild(sel);
+
+        // Append row (no per-row submit)
+        tr.append(tdIdx, tdReco, tdAmount, tdResult);
+        recBody.appendChild(tr);
+
+        if (i > 0) tr.classList.add("row-hidden");
+
+        // store row
+        const rowObj = { tr, recoCell: tdReco, amountInput, select: sel, index: i, submittedReco: null };
+        rows.push(rowObj);
+
+        // validate enabling global submit when current row changes
+        function validateGlobalSubmit() {
+          const isVisible = rowObj.index === visibleIndex;
+          const hasAmount = rowObj.amountInput.value.trim() !== "" && Number(rowObj.amountInput.value) > 0;
+          const hasResult = rowObj.select.value !== "";
+          const ok = isVisible && hasAmount && hasResult && rowObj.submittedReco === null;
+          globalSubmitBtn.disabled = !ok;
+        }
+
+        // attach listeners
+        amountInput.addEventListener("input", validateGlobalSubmit);
+        sel.addEventListener("change", () => {
+          validateGlobalSubmit();
+          computeAndShowRecommendations();
+        });
+      }
+
+      // initial compute & display
+      computeAndShowRecommendations();
+      updateGlobalSubmitState();
+      setTimeout(() => { rows[0]?.amountInput.focus(); }, 100);
+    }
+
+    // Compute recommendations and show them in the table.
+    function computeAndShowRecommendations() {
+      if (!rows.length) return;
+
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+
+        // If row already submitted, keep displayed submittedReco
+        if (r.submittedReco !== null) {
+          r.recoCell.textContent = money(r.submittedReco);
+          r.recoCell.dataset.reco = r.submittedReco;
+          continue;
+        }
+
+        // If row is visible, compute visible recommendation
+        if (i === visibleIndex) {
+          let visibleRec;
+
+          // check previous submitted row for Loss (doubling)
+          if (i - 1 >= 0 && rows[i - 1].submittedReco !== null) {
+            const prev = rows[i - 1];
+            const prevWasLoss = prev.select && prev.select.value === "Loss";
+            if (prevWasLoss) {
+              visibleRec = round2((prev.submittedReco || baseTrade) * 2);
+            } else {
+              visibleRec = round2(Math.max(baseTrade, Math.max(0, remainingBalance * 0.005)));
+            }
+          } else {
+            visibleRec = round2(Math.max(baseTrade, Math.max(0, remainingBalance * 0.005)));
+          }
+
+          // cap at 50% of remaining balance
+          const cap = round2(Math.max(0, remainingBalance * 0.5));
+          if (visibleRec > cap) visibleRec = cap;
+
+          r.recoCell.textContent = money(visibleRec);
+          r.recoCell.dataset.reco = visibleRec;
+
+          // placeholder guidance for amount input
+          if (!r.amountInput.value && !r.amountInput.disabled) {
+            r.amountInput.placeholder = visibleRec.toFixed(2);
+          }
+          continue;
+        }
+
+        // unopened rows show baseline
+        if (i > visibleIndex) {
+          r.recoCell.textContent = money(baseTrade);
+          r.recoCell.dataset.reco = baseTrade;
+          if (!r.amountInput.value && !r.amountInput.disabled) {
+            r.amountInput.placeholder = baseTrade.toFixed(2);
+          }
+          continue;
+        }
+
+        // fallback
+        r.recoCell.textContent = money(baseTrade);
+        r.recoCell.dataset.reco = baseTrade;
+      }
+
+      // update remaining balance & cumulative displays
+      remainingBalanceEl.textContent = money(remainingBalance);
+
+      const cumulativePL = round2(remainingBalance - startingBalance);
+      cumPLEl.textContent = money(cumulativePL);
+      cumPLEl.classList.remove('text-emerald-400','text-rose-400','text-gray-200');
+      if (cumulativePL > 0) {
+        cumPLEl.classList.add('text-emerald-400');
+      } else if (cumulativePL < 0) {
+        cumPLEl.classList.add('text-rose-400');
+      } else {
+        cumPLEl.classList.add('text-gray-200');
+      }
+    }
+
+    // Update global submit enable/disable based on the current visible row's inputs
+    function updateGlobalSubmitState() {
+      if (!rows.length) {
+        globalSubmitBtn.disabled = true;
+        return;
+      }
+      const current = rows[visibleIndex];
+      if (!current) { globalSubmitBtn.disabled = true; return; }
+
+      const hasAmount = current.amountInput.value.trim() !== "" && Number(current.amountInput.value) > 0;
+      const hasResult = current.select.value !== "";
+      const notLocked = current.submittedReco === null;
+      globalSubmitBtn.disabled = !(hasAmount && hasResult && notLocked);
+    }
+
+    // global submit click -> behave like previous per-row submit handler but for current visible row
+    globalSubmitBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      if (globalSubmitBtn.disabled) return;
+      if (!rows.length) return;
+
+      const rowObj = rows[visibleIndex];
+      if (!rowObj) return;
+
+      // read entered amount (positive number)
+      const entered = Number(rowObj.amountInput.value);
+      if (!entered || entered <= 0) {
+        alert("Enter a valid positive amount representing the win or loss.");
+        return;
+      }
+      const res = rowObj.select.value;
+      if (res !== "Win" && res !== "Loss") {
+        alert("Select Win or Loss.");
+        return;
+      }
+
+      // grab the recommendation that was visible for this row (stored in recoCell.dataset.reco)
+      const visibleRecNum = parseFloat(rowObj.recoCell.dataset.reco || baseTrade);
+      const usedReco = round2(visibleRecNum);
+      rowObj.submittedReco = usedReco;
+
+      // update remaining balance based on entered amount
+      if (res === "Win") {
+        remainingBalance = round2(remainingBalance + entered);
+      } else {
+        remainingBalance = round2(remainingBalance - entered);
+      }
+
+      // lock inputs
+      rowObj.amountInput.disabled = true;
+      rowObj.amountInput.className = "p-2 w-20 sm:w-28 bg-gray-800 border border-gray-700 rounded-md text-gray-300 mono cursor-not-allowed";
+      rowObj.select.disabled = true;
+
+      // mark submitted state visually
+      rowObj.tr.style.backgroundColor = res === "Win" ? "rgba(16,185,129,0.04)" : "rgba(239,68,68,0.04)";
+      rowObj.tr.style.borderLeft = res === "Win" ? "4px solid rgba(16,185,129,0.16)" : "4px solid rgba(239,68,68,0.16)";
+
+      // display the used recommendation for this submitted row
+      rowObj.recoCell.textContent = money(rowObj.submittedReco);
+      rowObj.recoCell.dataset.reco = rowObj.submittedReco;
+
+      // reveal next row if any and advance visibleIndex
+      const next = rowObj.index + 1;
+      if (next < rows.length) {
+        rows[next].tr.classList.remove("row-hidden");
+        visibleIndex = next;
+        // focus new row's amount
+        setTimeout(() => { rows[next]?.amountInput.focus(); }, 50);
+      } else {
+        // all done -> disable global submit
+        visibleIndex = next; // out of bounds
+      }
+
+      // recompute to update recommendation shown for the visible row
+      computeAndShowRecommendations();
+    });
+
+    // form submit -> initialize balances and create rows
+    document.getElementById("inputsForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const total = Number(document.getElementById("totalAmount").value);
+      const count = Number(document.getElementById("numTrades").value);
+
+      if (!total || total <= 0 || !count || count <= 0) {
+        alert("Please enter valid values.");
+        return;
+      }
+
+      startingBalance = round2(total);
+      remainingBalance = startingBalance;
+      baseTrade = round2(startingBalance * 0.005); // 0.5% baseline
+
+      buildRows(Math.max(1, Math.floor(count)));
+
+      resultsSec.classList.remove("hidden");
+      statsSec.classList.remove("hidden");
+
+      // focus first amount input
+      setTimeout(() => { rows[0]?.amountInput.focus(); }, 100);
+    });
+
+    // reset
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      recBody.innerHTML = "";
+      rows = [];
+      startingBalance = 0;
+      remainingBalance = 0;
+      baseTrade = 0;
+      visibleIndex = 0;
+      document.getElementById("totalAmount").value = "";
+      document.getElementById("numTrades").value = "";
+      resultsSec.classList.add("hidden");
+      statsSec.classList.add("hidden");
+      remainingBalanceEl.textContent = money(0);
+      cumPLEl.textContent = money(0);
+      cumPLEl.classList.remove('text-emerald-400','text-rose-400');
+      cumPLEl.classList.add('text-gray-200');
+      globalSubmitBtn.disabled = true;
+    });
+  </script>
+
+</body>
+</html>
